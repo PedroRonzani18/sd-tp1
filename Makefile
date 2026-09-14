@@ -19,7 +19,7 @@ $(BIN_DIR)/receptor: $(ATV1_DIR)/receptor.cpp | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) $< -o $@
 
 test-atividade1: atividade1
-	./atividade-1-sinais/testar.sh
+	bash ./atividade-1-sinais/testar.sh
 
 clean:
 	rm -rf $(BIN_DIR)

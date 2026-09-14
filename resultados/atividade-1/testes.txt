@@ -1,0 +1,31 @@
+=== Teste 1: blocking wait + emissor ===
+Sinal 10 enviado ao processo 1399.
+Sinal 12 enviado ao processo 1399.
+Sinal 15 enviado ao processo 1399.
+PID: 1399 | modo: blocking
+Recebido SIGUSR1.
+Recebido SIGUSR2.
+Recebido SIGTERM. Encerrando.
+
+=== Teste 2: busy wait + emissor ===
+Sinal 10 enviado ao processo 1410.
+Sinal 12 enviado ao processo 1410.
+Sinal 15 enviado ao processo 1410.
+PID: 1410 | modo: busy
+Recebido SIGUSR1.
+Recebido SIGUSR2.
+Recebido SIGTERM. Encerrando.
+
+=== Teste 3: blocking wait + comando kill ===
+PID: 1421 | modo: blocking
+Recebido SIGUSR1.
+Recebido SIGUSR2.
+Recebido SIGTERM. Encerrando.
+
+=== Teste 4: processo inexistente ===
+Erro: processo 999999 nao encontrado.
+codigo de saida: 1
+
+=== Teste 5: comparacao aproximada de CPU ===
+blocking:  0.0 S
+busy:      100 R

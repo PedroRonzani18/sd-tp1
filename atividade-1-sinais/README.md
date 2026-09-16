@@ -1,76 +1,116 @@
-# Atividade 1 - Sinais
+# Atividade 1 — Sinais
 
-Esta pasta contém os dois programas solicitados na atividade de sinais.
+## Roteiro para testar
 
-## Arquivos
-
-- `emissor.cpp`: recebe um PID e o número de um sinal, verifica se o processo existe e envia o sinal;
-- `receptor.cpp`: registra handlers para `SIGUSR1`, `SIGUSR2` e `SIGTERM` e aguarda sinais em modo `busy` ou `blocking`;
-- `testar.sh`: executa os principais testes da atividade e registra a saída em `resultados/atividade-1/testes.txt`.
-
-O `SIGTERM` foi escolhido como o sinal responsável por encerrar o receptor.
-
-## Compilação
-
-Execute na raiz do repositório:
+Entre na pasta da atividade e compile os programas:
 
 ```bash
-make atividade1
+cd atividade-1-sinais
+make
 ```
 
-## Execução
+Abra dois terminais nessa pasta.
 
-### Blocking wait
+### Terminal 1: receptor
 
-Terminal 1:
+Inicie o receptor no modo bloqueante:
 
 ```bash
-./bin/receptor blocking
+./bin/receptor.out blocking
 ```
 
-O receptor exibirá seu PID. Use esse valor em um segundo terminal:
+Ele exibirá algo parecido com:
+
+```text
+PID: 12345 | modo: blocking
+```
+
+Anote o PID exibido.
+
+### Terminal 2: emissor
+
+Copie o PID mostrado no Terminal 1 para uma variável do shell. Exemplo, se o
+PID exibido foi `12345`:
 
 ```bash
-./bin/emissor <PID> 10
-./bin/emissor <PID> 12
-./bin/emissor <PID> 15
+RECEPTOR_PID=12345
 ```
 
-No ambiente Linux utilizado nos testes, esses números representam respectivamente `SIGUSR1`, `SIGUSR2` e `SIGTERM`.
-
-Os mesmos sinais podem ser enviados sem o programa emissor:
+Depois envie os sinais usando a variável:
 
 ```bash
-kill -USR1 <PID>
-kill -USR2 <PID>
-kill -TERM <PID>
+./bin/emissor.out "$RECEPTOR_PID" "$(kill -l USR1)"
+./bin/emissor.out "$RECEPTOR_PID" "$(kill -l USR2)"
+./bin/emissor.out "$RECEPTOR_PID" "$(kill -l TERM)"
 ```
 
-### Busy wait
-
-Terminal 1:
+Ao iniciar outro receptor, basta atualizar a variável com o novo PID:
 
 ```bash
-./bin/receptor busy
+RECEPTOR_PID=NOVO_PID
 ```
 
-O envio dos sinais é feito da mesma maneira.
+O receptor deve mostrar mensagens para `SIGUSR1` e `SIGUSR2`. Ao receber
+`SIGTERM`, ele mostra a mensagem final e encerra.
 
-## Comportamento esperado
+## Teste usando `kill`
 
-Para `SIGUSR1` e `SIGUSR2`, o receptor imprime uma mensagem e continua executando. Ao receber `SIGTERM`, imprime a mensagem de encerramento e termina.
-
-A diferença entre os modos está apenas na espera:
-
-- `busy`: permanece executando um laço enquanto aguarda sinais;
-- `blocking`: utiliza `pause()` e fica bloqueado enquanto não há sinal a tratar.
-
-## Testes automatizados
-
-Na raiz do repositório:
+Com o receptor aberto novamente, também é possível enviar os sinais sem usar
+o programa emissor:
 
 ```bash
-make test-atividade1
+kill -USR1 "$RECEPTOR_PID"
+kill -USR2 "$RECEPTOR_PID"
+kill -TERM "$RECEPTOR_PID"
 ```
 
-O resultado completo fica em `resultados/atividade-1/testes.txt`.
+## Teste do busy wait
+
+No Terminal 1, troque `blocking` por `busy`:
+
+```bash
+./bin/receptor.out busy
+```
+
+Depois repita os mesmos comandos do Terminal 2.
+
+## Comparação de uso de CPU
+
+Use dois terminais. No Terminal 1, inicie o receptor em modo `busy`:
+
+```bash
+./bin/receptor.out busy
+```
+
+No Terminal 2, copie o PID exibido e espere um segundo. Em seguida, veja o
+uso de CPU do processo:
+
+```bash
+RECEPTOR_PID=12345
+sleep 1
+ps -p "$RECEPTOR_PID" -o pid=,%cpu=,stat=,command=
+```
+
+O modo `busy` deve usar uma porcentagem alta de CPU. Encerre-o:
+
+```bash
+kill -TERM "$RECEPTOR_PID"
+```
+
+Agora, no Terminal 1, inicie o modo `blocking`:
+
+```bash
+./bin/receptor.out blocking
+```
+
+No Terminal 2, atualize a variável com o novo PID e execute o mesmo comando:
+
+```bash
+RECEPTOR_PID=NOVO_PID
+sleep 1
+ps -p "$RECEPTOR_PID" -o pid=,%cpu=,stat=,command=
+```
+
+No modo `blocking`, o uso de CPU deve ser próximo de `0.0` e o estado tende a
+aparecer como `S` (sleeping). No modo `busy`, o estado tende a aparecer como
+`R` (running).

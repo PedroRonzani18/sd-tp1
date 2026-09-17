@@ -1,4 +1,6 @@
+#include <cerrno>
 #include <csignal>
+#include <cstring>
 #include <iostream>
 #include <string>
 #include <unistd.h>
@@ -44,6 +46,15 @@ void mostrar_sinais_recebidos() {
     }
 }
 
+bool registrar_handler(int sinal, void (*handler)(int)) {
+    struct sigaction acao {};
+    sigemptyset(&acao.sa_mask);
+    acao.sa_flags = 0;
+    acao.sa_handler = handler;
+
+    return sigaction(sinal, &acao, nullptr) == 0;
+}
+
 int main(int argc, char* argv[]) {
     if (argc != 2) {
         cerr << "Uso: " << argv[0] << " <busy|blocking>\n";
@@ -56,27 +67,12 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // "sigaction" e o tipo de configuracao que o sistema operacional entende.
-    // "acao" e somente a variavel onde guardamos essa configuracao.
-    struct sigaction acao {};
-    // sa_mask seria uma lista de sinais a bloquear durante o tratamento.
-    // A lista fica vazia: nao vamos bloquear nenhum sinal extra.
-    sigemptyset(&acao.sa_mask);
-    // sa_flags guarda opcoes extras. Zero significa usar o comportamento padrao,
-    // sem ligar nenhuma opcao especial.
-    acao.sa_flags = 0;
-
-    acao.sa_handler = tratar_sigusr1; // Define qual funcao deve rodar ao receber SIGUSR1.
-
-    // Entrega essa configuracao ao sistema. "&acao" e o endereco da variavel
-    // de configuracao; "nullptr" diz que nao precisamos da configuracao antiga.
-    sigaction(SIGUSR1, &acao, nullptr);
-
-    acao.sa_handler = tratar_sigusr2;
-    sigaction(SIGUSR2, &acao, nullptr);
-
-    acao.sa_handler = tratar_sigterm;
-    sigaction(SIGTERM, &acao, nullptr);
+    if (!registrar_handler(SIGUSR1, tratar_sigusr1) ||
+        !registrar_handler(SIGUSR2, tratar_sigusr2) ||
+        !registrar_handler(SIGTERM, tratar_sigterm)) {
+        cerr << "Erro ao registrar os handlers: " << strerror(errno) << '\n';
+        return 1;
+    }
 
     cout << "PID: " << getpid() << " | modo: " << modo << endl;
 
@@ -86,10 +82,40 @@ int main(int argc, char* argv[]) {
             mostrar_sinais_recebidos();
         }
     } else {
-        // pause() para o processo ate um sinal chegar.
+        // Bloqueia os sinais antes de testar a condicao. Assim, um sinal nao se
+        // perde no intervalo entre testar "executando" e iniciar a espera.
+        sigset_t sinais_monitorados {};
+        sigemptyset(&sinais_monitorados);
+        sigaddset(&sinais_monitorados, SIGUSR1);
+        sigaddset(&sinais_monitorados, SIGUSR2);
+        sigaddset(&sinais_monitorados, SIGTERM);
+
+        sigset_t mascara_anterior {};
+        if (sigprocmask(SIG_BLOCK, &sinais_monitorados, &mascara_anterior) == -1) {
+            cerr << "Erro ao bloquear sinais: " << strerror(errno) << '\n';
+            return 1;
+        }
+
+        // sigsuspend() troca a mascara e espera de forma atomica, eliminando a
+        // condicao de corrida que existiria com while (...) { pause(); }.
+        sigset_t mascara_espera = mascara_anterior;
+        sigdelset(&mascara_espera, SIGUSR1);
+        sigdelset(&mascara_espera, SIGUSR2);
+        sigdelset(&mascara_espera, SIGTERM);
+
         while (executando) {
-            pause();
             mostrar_sinais_recebidos();
+            if (!executando) {
+                break;
+            }
+
+            sigsuspend(&mascara_espera);
+            mostrar_sinais_recebidos();
+        }
+
+        if (sigprocmask(SIG_SETMASK, &mascara_anterior, nullptr) == -1) {
+            cerr << "Erro ao restaurar mascara de sinais: " << strerror(errno) << '\n';
+            return 1;
         }
     }
 

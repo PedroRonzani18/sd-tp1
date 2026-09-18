@@ -192,6 +192,7 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
+    // Cria o pipe antes do fork para que pai e filho compartilhem suas pontas.
     int pipe_ends[2];
     if (pipe(pipe_ends) == -1) {
         std::cerr << "Erro ao criar o pipe: " << std::strerror(errno) << '\n';
@@ -206,6 +207,8 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
+
+    // Cada processo fecha a ponta do pipe que nao usa.
     if (child_pid == 0) {
         close(pipe_ends[1]);
         const int consumer_status = run_consumer(pipe_ends[0]);
